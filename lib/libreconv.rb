@@ -17,20 +17,28 @@ module Libreconv
       @source = source
       @target = target
       @soffice_command = soffice_command
+      @timeout_command = nil
+      @timeout_command_duration = '600'
       @convert_to = convert_to || "pdf"
       determine_soffice_command
+      determine_timeout_command
       check_source_type
 
       unless @soffice_command && File.exists?(@soffice_command)
         raise IOError, "Can't find Libreoffice or Openoffice executable."
       end
+
+      unless @timeout_command && File.exists?(@timeout_command)
+        raise IOError, "Can't find Timeout executable."
+      end
+
     end
 
     def convert
       orig_stdout = $stdout.clone
       $stdout.reopen File.new('/dev/null', 'w')
       Dir.mktmpdir { |target_path|
-        pid = Spoon.spawnp(@soffice_command, "--headless", "--convert-to", @convert_to, @source, "--outdir", target_path)
+        pid = Spoon.spawnp(@timeout_command, @timeout_command_duration, @soffice_command, "--headless", "--convert-to", @convert_to, @source, "--outdir", target_path)
         Process.waitpid(pid)
         $stdout.reopen orig_stdout
         target_tmp_file = "#{target_path}/#{File.basename(@source, ".*")}.#{File.basename(@convert_to, ":*")}"
@@ -45,6 +53,11 @@ module Libreconv
         @soffice_command ||= which("soffice")
         @soffice_command ||= which("soffice.bin")
       end
+    end
+
+    def determine_timeout_command
+      return unless which('timeout')
+      @timeout_command = which('timeout')
     end
 
     def which(cmd)
